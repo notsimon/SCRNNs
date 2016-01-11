@@ -37,8 +37,14 @@ function models.makeModelNets(params, dict, n_classes)
         -- make the encoder
         enc = nn.Sequential()
         local net_parallel = nn.ParallelTable()
-        local emb = nn.LookupTableGPU(ncls, nhid)
-        local proj = nn.LinearNB(nhid, nhid)
+        local emb, proj
+        if nn.LookupTableGPU and nn.LinearNB then
+            emb = nn.LookupTableGPU(ncls, nhid)
+            proj = nn.LinearNB(nhid, nhid)
+        else
+            emb = nn.LookupTable(ncls, nhid)
+            proj = nn.Linear(nhid, nhid)
+        end
         net_parallel:add(emb)
         net_parallel:add(proj)
         enc:add(net_parallel)
@@ -56,7 +62,11 @@ function models.makeModelNets(params, dict, n_classes)
         -- make the decoder
         if string.find(params.name, '_sm') then
             dec = nn.Sequential()
-            dec:add(nn.LinearNB(nhid, ncls))
+            if nn.LinearNB then
+                dec:add(nn.LinearNB(nhid, ncls))
+            else
+                dec:add(nn.Linear(nhid, ncls))
+            end
             dec:add(nn.LogSoftMax())
         elseif string.find(params.name, '_hsm') then
             decloss = nn.HSM(dict.mapping, nhid)
@@ -94,10 +104,18 @@ function models.makeModelNets(params, dict, n_classes)
         -- Output Encoder: {h_t, c_t}
         -- Input Decoder: h_t
         -- Output Decoder: o_t
-        local emb1 = nn.LookupTableGPU(ncls, nhid)
-        local emb2 = nn.LookupTableGPU(ncls, nhid)
-        local emb3 = nn.LookupTableGPU(ncls, nhid)
-        local emb4 = nn.LookupTableGPU(ncls, nhid)
+        local emb1, emb2, emb3, emb4
+        if nn.LookupTableGPU then
+            emb1 = nn.LookupTableGPU(ncls, nhid)
+            emb2 = nn.LookupTableGPU(ncls, nhid)
+            emb3 = nn.LookupTableGPU(ncls, nhid)
+            emb4 = nn.LookupTableGPU(ncls, nhid)
+        else
+            emb1 = nn.LookupTable(ncls, nhid)
+            emb2 = nn.LookupTable(ncls, nhid)
+            emb3 = nn.LookupTable(ncls, nhid)
+            emb4 = nn.LookupTable(ncls, nhid)
+        end
         local proj1 = nn.Linear(nhid, nhid)
         local proj2 = nn.Linear(nhid, nhid)
         local proj3 = nn.Linear(nhid, nhid)
@@ -171,13 +189,24 @@ function models.makeModelNets(params, dict, n_classes)
         local nslow = params.n_slow
         local scale = params.semb_scale
         -- make the encoder
-        local emb_fast = nn.LookupTableGPU(ncls, nhid)
         local emb_slow = nn.Sequential()
-        emb_slow:add(nn.LookupTableGPU(ncls, nslow))
+        local emb_fast, proj_fast, proj_slow, proj_slow2fast
+        if nn.LookupTableGPU and nn.LinearNB then 
+            emb_fast = nn.LookupTableGPU(ncls, nhid)
+            emb_slow:add(nn.LookupTable(ncls, nslow))
+
+            proj_fast = nn.LinearNB(nhid, nhid)
+            proj_slow = nn.LinearNB(nslow, nslow)
+            proj_slow2fast = nn.LinearNB(nslow, nhid)
+        else
+            emb_fast = nn.LookupTable(ncls, nhid)
+            emb_slow:add(nn.LookupTable(ncls, nslow))
+
+            proj_fast = nn.Linear(nhid, nhid)
+            proj_slow = nn.Linear(nslow, nslow)
+            proj_slow2fast = nn.Linear(nslow, nhid)
+        end
         emb_slow:add(nn.MulConstant(scale))
-        local proj_fast = nn.LinearNB(nhid, nhid)
-        local proj_slow = nn.LinearNB(nslow, nslow)
-        local proj_slow2fast = nn.LinearNB(nslow, nhid)
 
         -- construct the scrnn encoder graph
         local input_symbol = nn.Identity()()
@@ -204,7 +233,11 @@ function models.makeModelNets(params, dict, n_classes)
         if string.find(params.name, '_sm') then
             dec = nn.Sequential()
             dec:add(nn.JoinTable(2))
-            dec:add(nn.LinearNB(nhid + nslow, ncls))
+            if nn.LinearNB then
+                dec:add(nn.LinearNB(nhid + nslow, ncls))
+            else
+                dec:add(nn.Linear(nhid + nslow, ncls))
+            end
             dec:add(nn.LogSoftMax())
         elseif string.find(params.name, '_hsm') then
             local join = nn.JoinTable(2)

@@ -15,7 +15,6 @@
 -- This file trains and tests the RNN with single worker.
 require('nn')
 require('nngraph')
-require('fbcunn')
 require('train')
 require('options')
 local dtls = require('datatools')
@@ -32,6 +31,7 @@ g_params.trainer.save_dir = g_params.trainer.save_dir
 
 -- cuda?
 if g_params.cuda_device then
+    require('fbcunn')
     require 'cutorch'
     require 'cunn'
     cutorch.setDevice(g_params.cuda_device)
